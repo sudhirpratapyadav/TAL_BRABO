@@ -1,0 +1,441 @@
+	#Calculations of pulses for each joint as well as direction of joint motion
+	dir_ena = (enable<<5)
+	for i in range(5):
+		pulses[i] = (int)(abs(joint_command.position[i]-joint_state.position[i])*PPR[i]*GEAR_RATIO[i])
+		if(joint_command.position[i]>joint_state.position[i]):
+			dir_ena = dir_ena|(1<<i)
+		if(pulses[i]>MAX_PULSES):
+			pulses[i] = MAX_PULSES
+			rospy.logwarn('Speed limit exceeded for motor %d',(i+1))
+
+		#Updating Joint_State based on commanded angles as no explicit encoder is available
+		del_ang = math.copysign(pulses[i]/(PPR[i]*GEAR_RATIO[i]),joint_command.position[i]-joint_state.position[i])
+		joint_state.position[i] = joint_state.position[i] + del_ang
+
+	#Setting pulses and direction for joint4 and joint5 (therefore joint5_velocity = joint5_velocity - joint4_velocity)
+	temp_pul_3 = -pulses[3]
+	temp_pul_4 = -pulses[4]
+	if(dir_ena&0b00001000==0b00001000):
+		temp_pul_3 = pulses[3]
+	if(dir_ena&0b00010000==0b00010000):
+		temp_pul_4 = pulses[4]
+	temp_pul_4 = temp_pul_4 + temp_pul_3
+	if(temp_pul_4>0):
+		dir_ena = dir_ena|(0b00010000)
+		pulses[4] = temp_pul_4
+	else:
+		dir_ena = dir_ena&(0b11101111)
+		pulses[4] = -temp_pul_4
+
+	#Setting directions of some joints to match simulation
+	dir_ena = dir_ena^(0b00010011)
+
+def listener():
+
+	#Initializing global varibales
+	global pulses
+	global dir_ena
+	global enable	
+	global joint_state
+	pulses = [0,0,0,0,0]
+	dir_ena = 0
+	enable = 1
+
+	#Getting Initial Location of JOINTS from user
+	joint1_init_pos = -1
+	join2_init_pos = -1
+	joint3_init_pos = -1
+	while(True):
+		joint1_init_pos = input("Select position of joint1 (Black zone = 0, White zone=1) (Enter 1 or 0): ")
+		if(joint1_init_pos==0):
+			print "Black zone"
+			break
+		elif(joint1_init_pos==1):
+			print "White Zone"
+			break
+		else:
+			print "Please provide input in form of 0 or 1"
+
+	while(True):
+		joint2_init_pos = input("Select position of joint2 (Black zone = 0, White zone=1) (Enter 1 or 0): ")
+		if(joint2_init_pos==0):
+			print "Black zone"
+			break
+		elif(joint2_init_pos==1):
+			print "White Zone"
+			break
+		else:
+			print "Please provide input in form of 0 or 1"
+
+	while(True):
+		joint3_init_pos = input("Select position of joint3 (Black zone = 0, White zone=1) (Enter 1 or 0): ")
+		if(joint3_init_pos==0):
+			print "Black zone"
+			break
+		elif(joint3_init_pos==1):
+			print "White Zone"
+			break
+		else:
+			print "Please provide input in form of 0 or 1"
+	
+	#Starting Serial Interface
+	print ('Starting connection to arduino')	
+	ser = serial.Serial('/dev/ttyACM1', 115200, timeout=0.005)
+	rospy.sleep(3.0)
+	print('connected to arduino')	
+	
+	#Starting Homing of Robot (make robot go to inital position) 
+	print ('DO NOT DISTURB --- HOMING OF JOINTS STARTED --- DO NOT DISTURB')
+	#Homing of JOINT 1---------------------------------------------1111111111111111111111----------------------------
+	pre_sensor_val = -1
+	sensor_val = -1
+	if(joint1_init_pos==0):
+		while(True):
+			tm = time.clock()
+			#Sending commands to arduino
+			write_Int16(pulses[0],ser)
+			write_Int16(pulses[1],ser)
+			write_Int16(pulses[2],ser)
+			write_Int16(pulses[3],ser)
+			write_Int16(pulses[4],ser)
+			write_Byte(dir_ena,ser)
+			#Reading Sensor values from arduino
+			n = ser.inWaiting()
+			if(n>0):
+				if(n==1):
+					sensor_val = ord(ser.read(n))
+				else:
+					#Clearing buffer in case of wrong data from arduino
+					ser.read(n)
+			if(not (sensor_val==-1)):
+				if(pre_sensor_val==-1):
+					pre_sensor_val = sensor_val
+				else:
+					if(sensor_val&0b00010000==0b00000000 and pre_sensor_val&0b00010000==0b00000000):
+						dir_ena=0b00100001
+						pulses[0] = HOMING_PULSE
+					elif(sensor_val&0b00010000==0b00010000 and pre_sensor_val&0b00010000==0b00010000):
+						dir_ena=0b00100000
+						pulses[0] = HOMING_PULSE
+					elif(sensor_val&0b00010000==0b00010000 and pre_sensor_val&0b00010000==0b00000000):
+						dir_ena = 0
+						pulses[0] = 0
+						break
+					elif(sensor_val&0b00010000==0b00000000 and pre_sensor_val&0b00010000==0b00010000):
+						dir_ena = 0
+						pulses[0] = 0
+						break
+			pre_sensor_val = sensor_val
+			tm = time.clock()-tm
+			time.sleep(0.01-tm)
+	elif(joint1_init_pos==1):
+		while(True):
+			tm = time.clock()
+			#Sending commands to arduino
+			write_Int16(pulses[0],ser)
+			write_Int16(pulses[1],ser)
+			write_Int16(pulses[2],ser)
+			write_Int16(pulses[3],ser)
+			write_Int16(pulses[4],ser)
+			write_Byte(dir_ena,ser)
+			#Reading Sensor values from arduino
+			n = ser.inWaiting()
+			if(n>0):
+				if(n==1):
+					sensor_val = ord(ser.read(n))
+				else:
+					#Clearing buffer in case of wrong data from arduino
+					ser.read(n)
+			if(not (sensor_val==-1)):
+				if(pre_sensor_val==-1):
+					pre_sensor_val = sensor_val
+				else:
+					if(sensor_val&0b00010000==0b00000000 and pre_sensor_val&0b00010000==0b00010000):
+						dir_ena = 0
+						pulses[0] = 0
+						break
+					else:
+						dir_ena = 0b00100000
+						pulses[0] = HOMING_PULSE
+			pre_sensor_val = sensor_val
+			tm = time.clock()-tm
+			time.sleep(0.01-tm)
+
+	#Homing of JOINT 2-----------------------------------------------22222222222222222222222222222222-------------------------------
+	pre_sensor_val = -1
+	sensor_val = -1
+	if(joint2_init_pos==0):
+		while(True):
+			tm = time.clock()
+			#Sending commands to arduino
+			write_Int16(pulses[0],ser)
+			write_Int16(pulses[1],ser)
+			write_Int16(pulses[2],ser)
+			write_Int16(pulses[3],ser)
+			write_Int16(pulses[4],ser)
+			write_Byte(dir_ena,ser)
+			#Reading Sensor values from arduino
+			n = ser.inWaiting()
+			if(n>0):
+				if(n==1):
+					sensor_val = ord(ser.read(n))
+				else:
+					#Clearing buffer in case of wrong data from arduino
+					ser.read(n)
+			if(not (sensor_val==-1)):
+				if(pre_sensor_val==-1):
+					pre_sensor_val = sensor_val
+				else:
+					if(sensor_val&0b00001000==0b00000000 and pre_sensor_val&0b00001000==0b00000000):
+						dir_ena=0b00100010
+						pulses[1] = HOMING_PULSE
+					elif(sensor_val&0b00001000==0b00001000 and pre_sensor_val&0b00001000==0b00001000):
+						dir_ena=0b00100000
+						pulses[1] = HOMING_PULSE
+					elif(sensor_val&0b00001000==0b00001000 and pre_sensor_val&0b00001000==0b00000000):
+						dir_ena = 0
+						pulses[1] = 0
+						break
+					elif(sensor_val&0b00001000==0b00000000 and pre_sensor_val&0b00001000==0b00001000):
+						dir_ena = 0
+						pulses[1] = 0
+						break
+			pre_sensor_val = sensor_val
+			tm = time.clock()-tm
+			time.sleep(0.01-tm)
+	elif(joint2_init_pos==1):
+		while(True):
+			tm = time.clock()
+			#Sending commands to arduino
+			write_Int16(pulses[0],ser)
+			write_Int16(pulses[1],ser)
+			write_Int16(pulses[2],ser)
+			write_Int16(pulses[3],ser)
+			write_Int16(pulses[4],ser)
+			write_Byte(dir_ena,ser)
+			#Reading Sensor values from arduino
+			n = ser.inWaiting()
+			if(n>0):
+				if(n==1):
+					sensor_val = ord(ser.read(n))
+				else:
+					#Clearing buffer in case of wrong data from arduino
+					ser.read(n)
+			if(not (sensor_val==-1)):
+				if(pre_sensor_val==-1):
+					pre_sensor_val = sensor_val
+				else:
+					if(sensor_val&0b00001000==0b00001000 and pre_sensor_val&0b00001000==0b00000000):
+						dir_ena = 0
+						pulses[1] = 0
+						break
+					else:
+						dir_ena = 0b00100010
+						pulses[1] = HOMING_PULSE
+			pre_sensor_val = sensor_val
+			tm = time.clock()-tm
+			time.sleep(0.01-tm)
+	
+	
+#Homing of JOINT 3-----------------------------------------------33333333333333333333333333333333333-------------------------------
+	pre_sensor_val = -1
+	sensor_val = -1
+	if(joint3_init_pos==0):
+		while(True):
+			tm = time.clock()
+			#Sending commands to arduino
+			write_Int16(pulses[0],ser)
+			write_Int16(pulses[1],ser)
+			write_Int16(pulses[2],ser)
+			write_Int16(pulses[3],ser)
+			write_Int16(pulses[4],ser)
+			write_Byte(dir_ena,ser)
+			#Reading Sensor values from arduino
+			n = ser.inWaiting()
+			if(n>0):
+				if(n==1):
+					sensor_val = ord(ser.read(n))
+				else:
+					#Clearing buffer in case of wrong data from arduino
+					ser.read(n)
+			if(not (sensor_val==-1)):
+				if(pre_sensor_val==-1):
+					pre_sensor_val = sensor_val
+				else:
+					if(sensor_val&0b00000100==0b00000000 and pre_sensor_val&0b00000100==0b00000000):
+						dir_ena=0b00100100
+						pulses[2] = HOMING_PULSE
+					elif(sensor_val&0b00000100==0b00000100 and pre_sensor_val&0b00000100==0b00010000):
+						dir_ena=0b00100000
+						pulses[2] = HOMING_PULSE
+					elif(sensor_val&0b00000100==0b00000100 and pre_sensor_val&0b00000100==0b00000000):
+						dir_ena = 0
+						pulses[2] = 0
+						break
+					elif(sensor_val&0b00000100==0b00000000 and pre_sensor_val&0b00000100==0b00000100):
+						dir_ena = 0
+						pulses[2] = 0
+						break
+			pre_sensor_val = sensor_val
+			tm = time.clock()-tm
+			time.sleep(0.01-tm)
+	elif(joint3_init_pos==1):
+		while(True):
+			tm = time.clock()
+			#Sending commands to arduino
+			write_Int16(pulses[0],ser)
+			write_Int16(pulses[1],ser)
+			write_Int16(pulses[2],ser)
+			write_Int16(pulses[3],ser)
+			write_Int16(pulses[4],ser)
+			write_Byte(dir_ena,ser)
+			#Reading Sensor values from arduino
+			n = ser.inWaiting()
+			if(n>0):
+				if(n==1):
+					sensor_val = ord(ser.read(n))
+				else:
+					#Clearing buffer in case of wrong data from arduino
+					ser.read(n)
+			if(not (sensor_val==-1)):
+				if(pre_sensor_val==-1):
+					pre_sensor_val = sensor_val
+				else:
+					if(sensor_val&0b00000100==0b00000100 and pre_sensor_val&0b00000100==0b00000000):
+						dir_ena = 0
+						pulses[2] = 0
+						break
+					else:
+						dir_ena = 0b00100100
+						pulses[2] = HOMING_PULSE
+			pre_sensor_val = sensor_val
+			tm = time.clock()-tm
+			time.sleep(0.01-tm)
+
+
+#Homing of JOINT 4-----------------------------------------------44444444444444444444444444444444444444-------------------------------
+	pre_sensor_val = -1
+	sensor_val = -1
+	while(True):
+		tm = time.clock()
+		#Sending commands to arduino
+		write_Int16(pulses[0],ser)
+		write_Int16(pulses[1],ser)
+		write_Int16(pulses[2],ser)
+		write_Int16(pulses[3],ser)
+		write_Int16(pulses[4],ser)
+		write_Byte(dir_ena,ser)
+		#Reading Sensor values from arduino
+		n = ser.inWaiting()
+		if(n>0):
+			if(n==1):
+				sensor_val = ord(ser.read(n))
+			else:
+				#Clearing buffer in case of wrong data from arduino
+				ser.read(n)
+		if(not (sensor_val==-1)):
+			if(pre_sensor_val==-1):
+				pre_sensor_val = sensor_val
+			else:
+				if(sensor_val&0b00000010==0b00000010 and pre_sensor_val&0b00000010==0b00000000):
+					dir_ena=0
+					pulses[3] = 0
+					break
+				else:
+					dir_ena=0b00101000
+					pulses[3] = HOMING_PULSE*5
+		pre_sensor_val = sensor_val
+		tm = time.clock()-tm
+		time.sleep(0.01-tm)
+
+#Homing of JOINT 5-----------------------------------------------55555555555555555555555555555555555-------------------------------
+	pre_sensor_val = -1
+	sensor_val = -1
+	while(True):
+		tm = time.clock()
+		#Sending commands to arduino
+		write_Int16(pulses[0],ser)
+		write_Int16(pulses[1],ser)
+		write_Int16(pulses[2],ser)
+		write_Int16(pulses[3],ser)
+		write_Int16(pulses[4],ser)
+		write_Byte(dir_ena,ser)
+		#Reading Sensor values from arduino
+		n = ser.inWaiting()
+		if(n>0):
+			if(n==1):
+				sensor_val = ord(ser.read(n))
+			else:
+				#Clearing buffer in case of wrong data from arduino
+				ser.read(n)
+		if(not (sensor_val==-1)):
+			if(pre_sensor_val==-1):
+				pre_sensor_val = sensor_val
+			else:
+				if(sensor_val&0b00000001==0b00000001 and pre_sensor_val&0b00000001==0b00000000):
+					dir_ena=0
+					pulses[4] = 0
+					break
+				else:
+					dir_ena=0b00101000
+					pulses[4] = HOMING_PULSE*5
+		pre_sensor_val = sensor_val
+		tm = time.clock()-tm
+		time.sleep(0.01-tm)
+
+	print ('Going to initial angles')
+	#-------------------------------------------------HOMING DONE-----------------------------------------------------------------------------
+	initial_pulse_req = (35*PPR[0]*GEAR_RATIO[0]*DEG2RAD,28.5*PPR[1]*GEAR_RATIO[1]*DEG2RAD,(38.5+90)*PPR[2]*GEAR_RATIO[2]*DEG2RAD,(4+90)*PPR[3]*GEAR_RATIO[3]*DEG2RAD,0*PPR[4]*GEAR_RATIO[4]*DEG2RAD)
+	pulses = [0,0,0,0,0]
+	cur_pul = [0,0,0,0,0]
+	num_pul = 0	
+	while(True):
+		tm = time.clock()
+		#Sending commands to arduino
+		write_Int16(pulses[0],ser)
+		write_Int16(pulses[1],ser)
+		write_Int16(pulses[2],ser)
+		write_Int16(pulses[3],ser)
+		write_Int16(pulses[4],ser)
+		write_Byte(dir_ena,ser)
+		pulses = [0,0,0,0,0]
+		#Reading Sensor values from arduino
+		n = ser.inWaiting()
+		if(n>0):
+			if(n==1):
+				sensor_val = ord(ser.read(n))
+			else:
+				#Clearing buffer in case of wrong data from arduino
+				ser.read(n)
+		if(cur_pul[0]<initial_pulse_req[0]):
+			pulses[0] = 10
+			cur_pul[0] = cur_pul[0]+10
+		if(cur_pul[1]<initial_pulse_req[1]):
+			pulses[1] = 10		
+			cur_pul[1] = cur_pul[1]+10
+		if(cur_pul[2]<initial_pulse_req[2]):
+			pulses[2] = 10
+			cur_pul[2] = cur_pul[2]+10
+		if(cur_pul[3]<initial_pulse_req[3]):
+			pulses[3] = 10
+			cur_pul[3] = cur_pul[3]+10
+		if(cur_pul[4]<initial_pulse_req[4]):
+			pulses[4] = 10
+			cur_pul[4] = cur_pul[4]+10
+		dir_ena = 0b00101001
+		if(pulses[0]==0  and pulses[1]==0  and pulses[2]==0  and pulses[3]==0  and pulses[4]==0 ):
+			break
+		tm = time.clock()-tm
+		time.sleep(0.01-tm)
+	
+	print ('Homing Done, Creating Node and setting up Driver')
+	pulses = [0,0,0,0,0]
+	dir_ena = 0
+	tm = 0
+	
+	#------------------------------------------------------------------------------------------------------------------------------------------
+	#------------------------------------------------------------------------------------------------------------------------------------------
+	#------------------------------------------------------------------------------------------------------------------------------------------
+	#------------------------------------------------------------------------------------------------------------------------------------------
+	#------------------------------------------------------------------------------------------------------------------------------------------
+		

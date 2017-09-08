@@ -1,0 +1,99 @@
+hsv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV)
+
+	mask = cv2.inRange(hsv, greenLower, greenUpper)
+	mask = cv2.erode(mask, None, iterations=3)
+	mask = cv2.dilate(mask, None, iterations=3)
+
+cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)[-2]
+	center = (-1,-1)
+	
+	rec_x1 = -1
+	rec_y1 = -1
+	rec_x2 = -1
+	rec_y2 = -1	
+	x = 0
+	y = 0
+	radius =0
+
+	if len(cnts) > 0:
+		# find the largest contour in the mask, then use
+		# it to compute the minimum enclosing circle and
+		# centroid
+		c = max(cnts, key=cv2.contourArea)
+		kkk = c
+		((x, y), radius) = cv2.minEnclosingCircle(c)
+		M = cv2.moments(c)
+		center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+ 
+		# only proceed if the radius meets a minimum size
+		if radius > 20:
+			# draw the circle and centroid on the frame,
+			# then update the list of tracked points
+			d_r = 1.2*radius
+			rec_x1 = (int)(x - d_r)
+			rec_y1 = (int)(y - d_r)
+			rec_x2 = (int)(x + d_r)
+			rec_y2 = (int)(y + d_r)
+			
+			if(rec_x1<0):
+				rec_x1 = 0
+			if(rec_y1<0):
+				rec_y1 = 0	
+			if(rec_x2 >= IMG_WIDTH):
+				rec_x2 = IMG_WIDTH - 1
+			if(rec_y2 >= IMG_HEIGHT):
+				rec_y2 = IMG_HEIGHT - 1
+
+	#Object Detection code ended
+	
+	#rospy.loginfo(kkk)	
+
+	temp_img = np.zeros([IMG_HEIGHT,IMG_WIDTH,3],dtype=np.dtype('u1'))
+	mask1 = mask.copy()
+	
+
+	im_floodfill = mask.copy()
+	# Mask used to flood filling.
+	# Notice the size needs to be 2 pixels than the image.
+	mask_ff = np.zeros((IMG_HEIGHT+2, IMG_WIDTH+2), np.uint8)
+ 
+	# Floodfill from point (0, 0)
+	cv2.floodFill(im_floodfill, mask_ff, (0,0), 255);
+ 
+	# Invert floodfilled image
+	im_floodfill_inv = cv2.bitwise_not(im_floodfill)
+	 
+	# Combine the two images to get the foreground.
+	filled_img = mask | im_floodfill_inv	
+	
+	
+	temp_img[:,0:IMG_WIDTH,0] = mask1
+	temp_img[:,0:IMG_WIDTH,1] = mask1
+	temp_img[:,0:IMG_WIDTH,2] = mask1
+	grey_img = cv2.cvtColor(temp_img, cv2.COLOR_BGR2GRAY)
+	#grey_img = cv2.GaussianBlur(grey_img, (9, 9), 2, 2)
+	#grey_img = cv2.Canny(grey_img, 50, 100) 
+	if(radius >2000):
+		circles = cv2.HoughCircles(grey_img,cv2.HOUGH_GRADIENT,1,50,param1=50,param2=30,minRadius=0,maxRadius=0)
+		rospy.loginfo(circles)
+		if circles is not None:
+			circles = np.uint16(np.around(circles))
+		
+
+		if circles is not None:
+			for i in circles[0,:]:
+				# draw the outer circle
+				cv2.circle(cv_image,(i[0],i[1]),i[2],(0,255,0),2)
+				# draw the center of the circle
+				cv2.circle(cv_image,(i[0],i[1]),2,(0,0,255),3)
+		#Circle detection end
+
+	if(radius>20):
+		cv2.circle(cv_image, (int(x), int(y)), int(radius),(0, 255, 255), 2)
+		cv2.circle(cv_image, center, 5, (0, 0, 255), -1)
+
+	center_point = Point(center[0],center[1],0)
+	output_img = np.zeros([IMG_HEIGHT,IMG_WIDTH,3],dtype=np.dtype('u1'))
+	output_img[:,0:IMG_WIDTH,0] = grey_img
+	output_img[:,0:IMG_WIDTH,1] = grey_img
+	output_img[:,0:IMG_WIDTH,2] = grey_img
