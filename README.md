@@ -11,6 +11,7 @@ Tal Brabo is 5 DOF robotic arm developed at TAL pvt. Ltd. This document contains
 	3. Designing pipeline for object follower using a USB camera attached to end- effector of robot to demonstrate working of complete system.
 5. Things in Details -> Read Documentation
 
+# User Manual
 -------------------------Prerequisite------------------------------------
 1. cv_bridge ros package is required for object tracking application
 2. rviz is required for visual display of robot current state
