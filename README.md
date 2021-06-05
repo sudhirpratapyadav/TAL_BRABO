@@ -1,4 +1,4 @@
-# TAL_BRABO
+# TAL BRABO
 Tal Brabo is 5 DOF robotic arm developed at TAL pvt. Ltd. This document contains information about development of software interface (driver) for controlling robot using ROS. A usb camera is attached at end-effector of robot. Robot is required to follow a circular object.
 
 # Project Details
