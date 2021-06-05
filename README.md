@@ -1,6 +1,16 @@
 # TAL_BRABO
 Tal Brabo is 5 DOF robotic arm developed at TAL pvt. Ltd. This document contains information about development of software interface (driver) for controlling robot using ROS. A usb camera is attached at end-effector of robot. Robot is required to follow a circular object.
 
+# Project Details
+1. Aim -> Develop ROS (driver package) to control TAL Brabo Robot 
+2. Language, Frameworks, Hardware -> TAL Brabo Robot, Arduino, ROS (python, C++)
+3. Algorithms/Knowledge -> Stepper Motor Control via Arduino (Timers and interrupts as PWM/library won't work for finer control), , Kinematics of Robotic Arm & control 
+4. Things Done (3)
+	1. Controlling motors of robot using arduino - by hacking/bypassing built-in controller
+	2. Developing ROS node (driver) to communicate with arduino based on joint position streaming.
+	3. Designing pipeline for object follower using a USB camera attached to end- effector of robot to demonstrate working of complete system.
+5. Things in Details -> Read Documentation
+
 -------------------------Prerequisite------------------------------------
 1. cv_bridge ros package is required for object tracking application
 2. rviz is required for visual display of robot current state
